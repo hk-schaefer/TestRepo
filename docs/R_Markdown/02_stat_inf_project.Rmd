@@ -1,0 +1,1833 @@
+---
+title: "Statistical inference with the GSS data"
+author: "Hartmut Schaefer"
+date: 2024-03-31
+
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+    code_folding: show
+---
+
+
+## Setup
+
+#### Load packages
+
+```{r load-packages, message=FALSE, warning=FALSE}
+library(tidyverse)       # ------------------- data exploration, visualization
+library(statsr)          # ------------------- Course Stat R package
+library(data.table)      # ------------------- table calculation
+library(RColorBrewer)    # ------------------- additional color pallets
+library(patchwork)       # ------------------- additional visualization tool
+library(moments)         # ------------------- package to calculate Skewness
+```
+
+#### Load data
+
+```{r}
+load("~/R/TestRepo/Data/gss.Rdata")
+```
+
+
+## Part 1: Data
+
+#### The General Social Survey (GSS) Data set (1972-2012)
+
+**General objective of GSS**
+
+Since 1972, the General Social Survey (GSS) has been monitoring societal change and studying the growing complexity of American society. 
+
+The GSS aims to gather data on contemporary American society in order to monitor and explain trends and constants in attitudes, behaviors, and attributes; to examine the structure and functioning of society in general as well as the role played by relevant subgroups
+
+This extract of the General Social Survey (GSS) Cumulative File 1972-2012 provides a sample of selected indicators in the GSS with the goal of providing a convenient data resource for students learning statistical reasoning using the R language. [Link](https://d3c33hcgiwev3.cloudfront.net/_8abbe344133a7a8c98cfabe01a5075c2_gss.html?Expires=1711843200&Signature=NA9UOEFUJSPiJ2yEK-jMs1r0FM6Mv8fO21UDJWkCAqVDAm5DRUMfD~xUJpTSQHU-AWefK9vtHT5T90ffPXmBPR1tpSYX~e~KVBX2LujrYxSzvIPngO-r8Ah1S8BRa9XL9NH-GIc9o5gigSf8beum93T1gfKMNTDmJncao9ebNAg_&Key-Pair-Id=APKAJLTNE6QMUY6HBC5A)
+\
+\
+
+**Data survey methodology**
+
+The GSS is intended for people (18 and above) living in US homes. The GSS sample is derived from an **area probability methodology** that **selects respondents at random**. As a result, participants in the GSS come from a wide spectrum of urban, suburban, and rural areas. **Participation in the study is purely voluntary**. With **only a few thousand people questioned** in the original study, every **person chosen can contribute significantly** to its findings.\
+
+The data were collected by **personal face-to-face interviews**, **telephone interviews** and **paper-based questionnaires** (1972-2001) and from 2002 shifted to **computer-assisted personal interviewing methods** [Link](https://en.wikipedia.org/wiki/General_Social_Survey)\
+\
+
+#### Brief data exploration
+
+**Sample size by year**
+
+```{r}
+# Distribution of sample size
+gss %>% 
+  filter(!is.na(year)) %>% 
+  ggplot(aes(x = year))+
+  geom_bar(fill="darkgrey", color="black")+
+  labs(title = "Sample size per year (1972 - 2012)",
+      caption = "General Social Survey (GSS), 1972-2012")+
+  xlab("Year of survey")+
+  ylab("Sample size")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+```
+\
+
+Sample sizes in 1972-1993 are of about equal size 1500. From 1994 only every second year was sampled with a sample size  of about 2800 in 1994-2004. In 2006 the sample size jumped to 4500. In 2008-2012 the sample size returned back to around 2000 .\
+\
+
+**Distribution by age and gender**
+
+```{r}
+# Distribution of age by gender
+prop_sex <- gss %>% 
+  filter(!is.na(age), !is.na(sex)) %>% 
+  group_by(sex) %>% 
+  summarise(n = n()) %>% 
+  mutate(p_sex = n/sum(n))
+prop_sex
+  
+
+gss %>% 
+  filter(!is.na(age), !is.na(sex)) %>% 
+  ggplot(aes(x = age))+
+  geom_histogram(aes(fill=sex), binwidth = 5, color="black")+
+  labs(title = "Sample distribution for age by gender (1972-2012)",
+      caption = "General Social Survey (GSS), 1972-2012")+
+  xlab("Age")+
+  ylab("Count")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))+
+  facet_wrap(~sex, nrow=1)+
+  theme(legend.position = "nmone")
+```
+\
+Proportion in sex over all samples is 56% female and 44% male. The distributions of age are both right skewed for female and male. There is a small bias towards female due to their higher sample size, which is different from the population distribution (p = 0.5) \
+\
+
+
+#### Summary: 
+
+**Can the sample statistics be generalized to the US population?**\
+
+- All *samples were taken randomly*. However, since participation in the study was purely voluntary, we have to account for a certain *voluntary bias*.\
+- There is a *variability in sample size between the years*. Results from sample statistics cannot be generalized over the whole time span from 1972 to 2012. Instead it *should be generalized only to a respective year*. All sample sizes are above 1000 and *can therefore be generalized to the population*.\
+- The age distribution of the participants is right skewed for both genders, but without any extreme outliers and can be generalized.\
+\
+\
+\
+\
+
+
+
+## Part 2: Research Questions
+
+#### Objective
+
+Objective of the 2nd course project is to apply learned contents of statistical inference:
+
+- Conditions for statistical inference applying The Central Limit Theorem\
+- Confidence interval and hypothesis testing\
+- Inference for categorical data\
+- Inference for numerical data\
+
+According to these objectives the following research questions were chosen from the given data set:\
+
+Part I: Inference for categorical data\
+\
+Research question 1: Inference for a single proportion (z-test)\
+Research question 2: Inference for difference of two proportions (z-test)\
+Research question 3: Testing for independence (Chi-square test)\
+\
+
+Part II: Inference for numerical data\
+\
+Research question 4: Inference for difference of two means (t-test)\
+Research question 5: Inference for differences of many means: ANOVA test\
+\
+Abbreviations:\
+
+- CI = confidence interval
+- HT = hypothesis test
+\
+\
+\
+\
+
+## Part 3: Categorical data
+
+### 1. Single proportion
+#### Research Question 1: Attitude towards suicide
+
+One of the question in the GSS survey was the attitude towards suicide if someone has an incurable disease. Do the majority of Americans approve the view on suicide in this case?\
+
+a) Calculate the proportion and its **confidence interval** at a 95% confidence level\
+b) Does the data provide strong evidence that the majority of people approve the view on suicide in this case. Apply a **hypothesis test** with a significance level of 5%\
+c) Run the CI and HT calculation over all samples and identify a trend\
+
+We will use the following variable:\
+
+- `suicide1`(2 levels): Suicide if incurable disease, single variable\
+
+\
+
+#### Exploratory data analysis (EDA)
+
+Prepare the data set
+
+```{r}
+# Select required variables
+gss_select <- gss %>% 
+  select(year, suicide1)
+str(gss_select)
+```
+
+Check number of levels in `suicide`
+
+```{r}
+# Check number of levels in categorical variable
+gss_select %>% 
+  group_by(suicide1) %>% 
+  summarise(n = n())
+```
+
+
+```{r}
+# Plot number of levels in categorical variable
+gss_select %>%
+  filter(!is.na(suicide1)) %>% 
+  ggplot(aes(x = suicide1)) +
+  geom_bar()+
+  labs(title = "Has the right of suicide if incurable disease (1972-2012)",
+      caption = "General Social Survey (GSS), 1972-2012")+
+  xlab("Approve")+
+  ylab("Count")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+```
+
+
+Calculate proportions for each level
+
+```{r message=FALSE, warning=FALSE}
+# Calculate proportion for each level per year
+#
+# n_total: total number of sample
+# n_resp: number of responses who approve (success)
+# p_hat: sample proportion for approval (estimate)
+
+
+gss_result_01 <- gss_select %>% 
+  filter(!is.na(suicide1)) %>% 
+  group_by(year, suicide1) %>% 
+  summarise(n_resp = n()) %>% 
+  mutate(n_total = sum(n_resp),
+         p_hat = n_resp / sum(n_resp)) %>% 
+  filter(suicide1 == "Yes")
+head(gss_result_01)
+
+```
+\
+\
+
+
+#### 1a) Inference - Confidence Interval
+
+**Condition check**:\
+1. Independence of observations: Samples were taken randomly (see Part 1) => OK\
+2. Success-failure condition (SF condition):
+
+```{r}
+# check SF condition for CI
+#
+# p_hat : sample proportion (used as approximation for true proportion p)
+# SF condition: n_total * p_hat > 10 & n_total * (1 - p_hat) > 10 == TRUE
+#
+gss_result_01 <- gss_result_01 %>% 
+  mutate(SF_CI = ifelse(n_total*p_hat>10 &
+                          n_total*(1-p_hat)>10, "TRUE", "FALSE")
+           )
+gss_result_01
+```
+
+Independence and SF conditions are met. We can, therefore, conclude the sample proportion p_hat is nearly normal distributed and can apply the z-statistics to the confidence level calculation.\
+
+\
+**Calculate SE and CI**
+
+```{r}
+# Calculate SE and CI
+#
+# se_ci = standard error for confidence interval
+# moe = margin of error: z_star * se_ci
+# lower = lower margin of p_hat
+# upper = upper margin of p_hat
+
+alpha <- 0.05
+gss_result_01 <- gss_result_01 %>% 
+  filter(SF_CI == "TRUE") %>% 
+    mutate(se_ci = sqrt(p_hat * (1 - p_hat)/n_total),
+           moe = qnorm(1-alpha/2)*se_ci,
+           lower = p_hat - moe,
+           upper = p_hat + moe
+          )
+
+gss_result_01_view <- gss_result_01 %>% 
+  filter(year == 1977 | year == 2012) %>% 
+  select(year, p_hat, se_ci, moe, lower, upper)
+gss_result_01_view
+```
+\
+**Conclusion: **
+We are 95% confident that the true proportion of the American population who approved suicide in case of incurable disease was in 1977 between 36.7% and 41.6%, and in 2012 between 56.3% and 61.7%.\
+\
+\
+
+#### 1b) Inference - Hypothesis Test
+
+Null hypothesis (H0): There is no strong evidence that the American population approves suicide in case of incurable disease.
+
+Alternative hypothesis (Ha): There is a strong evidence that the American population approves suicide in case of incurable disease.\
+
+This can be formulated as:\
+
+- H0: p = 0.5 (there is a 50:50 chance)\
+- Ha: p > 0.5 (more people approve suicide due to incurable disease)\
+- Significance level: alpha = 0.05 (5%)
+
+We will carry out a one-sided z-Test\
+\
+
+**Condition check**:\
+1. Independence of observations: Samples were taken randomly (see Part 1) => OK\
+2. Success-failure condition (SF condition for hypothesis test)
+
+```{r}
+# check SF condition for HT
+#
+# p0 : true proportion (null value) given that H0 is true
+# SF condition: n_total * p0t > 10 & n_total * (1 - p0) > 10 == TRUE
+#
+
+p0 <- 0.5
+# check SF condition for HT
+gss_result_01 <- gss_result_01 %>% 
+  mutate(SF_HT = ifelse(n_total*p0>10 & n_total*(1-p0)>10, "TRUE", "FALSE")
+  )
+
+gss_result_01_view <- gss_result_01 %>% 
+  select(year, n_total, p_hat, SF_HT)
+gss_result_01_view
+```
+Independence and SF conditions are met. We can, therefore, conclude the sample proportion p_hat is nearly normal distributed and that we can apply the z-statistics for the hypothesis test.\
+
+```{r}
+# Hypothesis test
+# H0:       p0 = 0.5 (there is no clear winner, 50:50)
+# Ha:       p > 0.5  (true proportion is greater than 0.5)
+# alpha:    significance level (usually 0.05, i.e. 5%)
+# Type:     one sided test
+#
+# p:        true proportion
+# p0:       true proportion given that H0 is true
+# p_hat:    observed proportion from sample
+#
+# se_ht:    standard error given that H0 is true (use p0 instead)
+# Z:        z-statistic used to calculate the p-value
+# p_value:  probability of observed or more extreme values given H0 is true
+# decision: p_value < alpha : Reject H0, in favor of Ha
+# decision: p_value >= alpha: Fail to reject H0
+
+gss_result_01 <- gss_result_01 %>% 
+  filter(SF_HT == TRUE) %>% 
+  mutate(se_ht = sqrt(p0*(1-p0)/n_total),
+         Z = (p_hat - p0)/se_ht,
+         p_value = pnorm(Z, lower.tail = FALSE),
+         test_result = ifelse(p_value < alpha, "There is a majority", "No majority")
+  )
+
+gss_result_01_view <- gss_result_01 %>% 
+  select(year, p_hat, SF_HT, se_ht, Z, p_value, test_result)
+gss_result_01_view
+```
+
+
+```{r}
+
+gss_result_01 %>% 
+  ggplot(aes(x = test_result, fill=test_result))+
+  geom_bar() + 
+  labs (
+    title = "Hypothesis test: Approve suicide due to incurable disease in US?",
+    subtitle = "H0: no majority, Ha: majority, 1977-2012 (alpha = 5%)",
+    x = "Test results",
+    y = "In number of years")+
+    theme(plot.title.position = "plot", 
+          axis.title.y = element_text(hjust=1),
+          axis.title.x = element_text(hjust=0),
+          legend.position = "")
+```
+\
+
+**Conclusion: **
+In 14 years out of 21 the data show strong evidence that the majority of the population does approve suicide in case of incurable disease, with an type 1 error of 5%. I.e we may have made an error of 5% by rejecting the hypothesis but in fact the null hypothesis is true.\
+In 7 years out of 21 the data do not show strong evidence that the majority of the population does approve suicide in case of incurable disease\
+\
+
+#### 1c) Inference - Trend
+
+Visualizing the trend of population attitude towards suicide between 1977 to 2012:
+
+```{r}
+gss_result_01 %>% 
+  ggplot(aes(x = year))+
+  geom_line(aes(y = p_hat*100), col = "darkblue")+
+  geom_line(aes(y = lower*100), col = "black", linetype="dashed")+
+  geom_line(aes(y = upper*100), col = "black", linetype="dashed")+
+  geom_hline(yintercept = 50)+
+  labs (
+    title = "Attitude towards suicide due to incurable disease in US (1977-2012)",
+    subtitle = "Proportion with confidence interval in percent of sample population, (alpha = 5%)",
+    caption = "General Social Survey (GSS), 1972-2012",
+    x = "Year",
+    y = "Precentage")+
+  annotate("text", x=2005, y=51, label="approve")+
+  annotate("text", x=2005, y=49, label="not approve")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+```
+\
+**Conclusion: **
+In the years 1977 to 1989, except for 1986, the majority of the population did not approved suicide. Whereas, from 1990 the majority does approve it. \
+The approval rate for suicide increased from 39% to 69% between 1977 and 1994 then slightly decreased to 59% in 2012.\
+The results of the confidence interval and hypothesis tests agree with each other. I.e a "Fail to reject H0" result corresponds to a confidence interval whose lower value is less or equal to 50%.\
+\
+
+```{r include=FALSE}
+# removing all data from GE
+rm(list = ls())
+
+# reload dataset
+load("~/R/TestRepo/Data/gss.Rdata")
+```
+\
+\
+\
+\
+
+### 2. Difference of proportions
+#### Research Question 2: Success in life through hard work - belief by race
+
+Another question in the GSS survey is about the belief that hard work leads to success in life. We like to find differences in belief between the White and Non-white population.
+For this, we are going to test the difference of two proportions.
+
+a) Calculate the proportion difference and **confidence interval** at a 95% confidence level\
+b) Does the data provide strong evidence that there is a difference in belief. Apply a **hypothesis test** with a significance level of 5%\
+c) Run the CI and HT calculation over all samples and identify a trend.\
+
+We will use the following variables:\
+
+- `getahead` (4 levels): Opinion of how people get ahead, response variable\
+- `race` (3 levels): Race of respondent, explanatory variable\
+
+\
+
+#### Exploratory data analysis (EDA)
+
+**Prepare the data set**
+
+```{r}
+# Select required variables
+gss_select <- gss %>% 
+  select(year, race, getahead)
+```
+
+```{r}
+# Remove NAs
+gss_select <- gss_select %>% 
+  filter(!is.na(year) & !is.na(race) & !is.na(getahead))
+```
+\
+
+**Inspect variables**
+
+Variable `race`
+
+```{r}
+# Inspect variable race
+gss_select %>% 
+  group_by(race) %>% 
+  count()
+
+# Plot
+plot1 <- gss_select %>% 
+  ggplot(aes(x=race))+
+  geom_bar()+
+    labs (title = "Distribution of race")+
+    theme(plot.title.position = "plot", 
+          axis.title.y = element_text(hjust=1),
+          axis.title.x = element_text(hjust=0))
+```
+\
+
+Variable `getahead`
+
+```{r}
+# Inspect variable getahead
+gss_select %>% 
+  group_by((getahead)) %>% 
+  count()
+
+
+plot2 <- gss_select %>% 
+  ggplot(aes(x=getahead))+
+  geom_bar()+
+  labs (title = "Distr. of belief how to get ahead in life")+
+    theme(plot.title.position = "plot", 
+          axis.title.y = element_text(hjust=1),
+          axis.title.x = element_text(hjust=0))
+
+plot1 + plot2
+
+```
+\
+
+**Group categorical levels to meaningful sub-categories**\
+
+Collapse categorical levels to end up with 2 levels per variable.\
+
+- race: grouping "Black" and "Other" ->  "Non-white"\
+- getahead: grouping "Both Equally", "Luck Or Help", and "Other" -> "Other"\
+
+
+```{r}
+# Collapsing levels
+gss_select_fct <- gss_select %>%
+#  filter(getahead != "Both Equally") %>%     ---------- In case to take out this level
+  mutate(race_new = fct_collapse(race,
+                            white = c("White"),
+                            non_white = c("Black", "Other")),
+         getahead_new = fct_collapse(getahead,
+                            hard_work = c("Hard Work"),
+                            not_hard_work_alone = c("Both Equally", "Luck Or Help", "Other"))
+  )
+
+# Remove old levels
+gss_select_fct <- gss_select_fct %>% 
+  select(year, race_new, getahead_new)
+
+# Plot
+gss_select_fct %>% 
+  ggplot(aes(x=getahead_new))+
+  geom_bar(aes(fill=race_new))+
+  labs (title = "Distribution of belief how to get ahead in life by race",
+        caption = "General Social Survey (GSS), 1972-2012",
+        x = "Opinion",
+        fill = "Race")+
+  theme(plot.title.position = "plot", 
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+```
+\
+
+
+**Calculate proportions for each level**
+
+```{r message=FALSE, warning=FALSE}
+# Calculate proportion for each level per year
+#
+# n_total: total number of sample
+# n_resp:  number of responses who believe in "hard_work" (success)
+# p_hat:   sample proportion who believe in "hard_work" (estimate)
+
+gss_result_02 <- gss_select_fct %>% 
+  group_by(year, race_new, getahead_new) %>% 
+  summarise(n_resp = n()) %>% 
+  mutate(n_total = sum(n_resp),
+         p_hat = n_resp / sum(n_resp)) %>% 
+  filter(getahead_new == "hard_work")
+
+gss_result_02 %>% 
+  filter(year == 2012)
+```
+\
+
+**Pivot table so that each year is listed in one row**
+
+```{r}
+# Rearrange table so that races are listed in one row
+gss_result_02 <- gss_result_02 %>% 
+  pivot_wider(names_from = race_new, values_from = 4:6)
+
+# simplify variable names
+gss_result_02 <- gss_result_02 %>% 
+  select(year,
+         n_white = n_total_white,
+         n_resp_white,
+         p_hat_white,
+         n_non_white = n_total_non_white,
+         n_resp_non_white,
+         p_hat_non_white)
+
+gss_result_02 %>% 
+  filter(year == 2012)
+```
+\
+
+**Calculate difference of proportions and p_pool**
+
+`p_pool` is the weighted average of proportions and will be used in hypothesis testing later.
+
+```{r}
+# calculate difference of proportions and p_pool
+gss_result_02 <- gss_result_02 %>% 
+  mutate(p_hat_diff = p_hat_white - p_hat_non_white,
+         p_pool = (p_hat_white*n_white + p_hat_non_white*n_non_white)/
+           (n_white + n_non_white)
+  )
+gss_result_02 %>% 
+  select(year, p_hat_diff, p_pool) %>% 
+  filter(year == 2012)
+```
+\
+\
+
+#### 2a) Inference - Confidence Interval
+
+**Condition check**:\
+1. Independence of observations: Samples were taken randomly (see Part 1) => OK\
+2. Success-failure condition (SF condition):
+
+```{r}
+# check SF condition for CI
+#
+# p_hat_x : sample proportion for x (used as approximation for true proportion p)
+# SF cond1: n_total * p_hat_white > 10 & n_total * (1 - p_hat_white) > 10 == TRUE
+# SF cond2: n_total * p_hat_non_white > 10 & n_total * (1 - p_hat_non_white) > 10 == TRUE
+#
+gss_result_02 <- gss_result_02 %>% 
+  mutate(SF_CI = ifelse(n_white*p_hat_white>10 &
+                 n_white*(1-p_hat_white)>10 &
+                 n_non_white*p_hat_non_white>10 &
+                 n_non_white*(1-p_hat_non_white)>10, "TRUE", "FALSE")
+  )
+gss_result_02 %>% 
+  group_by(SF_CI) %>% 
+  summarise(n = n())
+```
+
+Independence and SF conditions are met for all years. We can, therefore, conclude the sample proportions p_hat_white, p_hat_non_white, and its difference p_hat_diff are nearly normal distributed and that we can apply the z-statistics to the confidence level calculation.\
+\
+
+**Calculate SE and CI for proportion difference**
+
+```{r}
+# Calculate SE and CI
+#
+# se_ci = standard error for confidence interval
+# moe = margin of error: z_star * se_ci
+# lower = lower margin of p_hat
+# upper = upper margin of p_hat
+
+alpha = 0.05
+
+gss_result_02 <- gss_result_02 %>% 
+  filter(SF_CI == "TRUE") %>% 
+  mutate(se_ci = sqrt(p_hat_white*    (1-p_hat_white)/    n_white +
+                      p_hat_non_white*(1-p_hat_non_white)/n_non_white),
+         moe = qnorm(1-alpha/2)*se_ci,
+         lower = p_hat_diff - moe,
+         upper = p_hat_diff + moe,
+  )
+
+gss_result_02_view <- gss_result_02 %>% 
+  filter(year == 2012) %>% 
+  select(year, p_hat_diff, se_ci, moe, lower, upper)
+gss_result_02_view
+```
+\
+**Conclusion: **
+We are 95% confident that the true proportion difference between White and Non-white Americans who belief that hard work leads to success is between -9.0% and 2.2% in 2012. I.e. the true difference could be either negative or positive. Therefore, there is no clear winner. This will be covered in the hypothesis test.\
+\
+\
+
+#### 2b) Inference - Hypothesis Test
+
+Null hypothesis (H0): There is no strong evidence of a difference in belief between White and Non-white American population that hard work leads to success in life.\
+
+Alternative hypothesis (Ha): There is a strong evidence of a difference in belief between White and Non-white American population that hard work leads to success in life.\
+
+This can be formulated as:\
+
+- H0: p0_diff = p_white - p_non_white  = 0 (there is no difference)\
+- Ha: p_diff  = p_white - p_non_white != 0 (there is a difference)\
+- Significance level: alpha = 0.05 (5%)
+
+We will carry out a two-sided z-Test\
+\
+
+**Condition check**:\
+1. Independence of observations: Samples were taken randomly (see Part 1) => OK\
+2. Success-failure condition (SF condition for hypothesis test)
+
+```{r}
+# check SF condition for HT
+#
+# p_pool :      weighted proportion (estimate for p0) given that H0 is true
+# SF cond1.:    n_white * p_pool > 10 & n_white * (1 - p_pool) > 10 == TRUE
+# SF cond2.:    n_non_white * p_pool > 10 & n_non_white * (1 - p_pool) > 10 == TRUE
+#
+gss_result_02 <- gss_result_02 %>% 
+  mutate(SF_HT = ifelse(n_white*p_pool>10 &
+                        n_white*(1-p_pool)>10 &
+                        n_non_white*p_pool>10 &
+                        n_non_white*(1-p_pool)>10, "TRUE", "FALSE")
+  )
+
+gss_result_02 %>% 
+  group_by(SF_HT) %>% 
+  summarise(n = n())
+
+gss_result_02_view <- gss_result_02 %>% 
+  select(year, p_hat_white, p_hat_non_white, p_hat_diff, p_pool, SF_HT)
+View(gss_result_02_view[19:24,])
+```
+Independence and SF conditions are met for all years. We can, therefore, conclude the sample proportion p_diff is nearly normal distributed and that we can apply the z-statistics for the hypothesis test.\
+\
+
+**Hypothesis test** 
+
+```{r}
+# Hypothesis test
+# H0:       p0_diff  = 0 (there is no difference)
+# Ha:       p_diff  != 0 (there is a difference)
+# alpha:    significance level (usually 0.05, i.e. 5%)
+# Type:     two-sided test
+#
+# p_diff:   true proportion difference
+# p0_diff:  true proportion difference given that H0 is true
+# p_hat_diff: observed proportion difference from sample
+#
+# se_ht:    standard error given that H0 is true (use p_pool instead)
+# Z:        z-statistic used to calculate the p-value
+# p_value:  probability of observed or more extreme values given H0 is true
+# decision: p_value < alpha : Reject H0, in favor of Ha
+# decision: p_value >= alpha: Fail to reject H0
+
+p0_diff <- 0
+
+gss_result_02 <- gss_result_02 %>% 
+  filter(SF_HT == TRUE) %>% 
+  mutate(se_ht = sqrt(p_pool*(1-p_pool)/n_white +
+                      p_pool*(1-p_pool)/n_non_white),
+         Z = (p_hat_diff - p0_diff)/se_ht,
+         p_value = 2 * pnorm(abs(Z), lower.tail = FALSE),
+         test_result = ifelse(p_value < alpha, "There is a difference", "No difference")
+  )
+
+df_H0_reject <- gss_result_02 %>% 
+#  filter(test_result == "There is a difference") %>% 
+  select(year, p_hat_diff, lower, upper, se_ht, Z, p_value, test_result)
+df_H0_reject
+```
+
+
+
+```{r}
+# Summary of HT
+gss_result_02 %>% 
+  group_by(test_result) %>% 
+  summarise(n = n())
+
+# Plot result
+gss_result_02 %>% 
+  ggplot(aes(x = test_result, fill=test_result))+
+  geom_bar() + 
+  labs (
+    title = "Hypothesis test: Hard work leads to success",
+    subtitle = "Difference in belief between White and Non-white Americans, 1973-2012 (alpha = 5%)",
+    caption = "General Social Survey (GSS), 1972-2012",
+    x = "Test results",
+    y = "In number of years")+
+    theme(plot.title.position = "plot", 
+          axis.title.y = element_text(hjust=1),
+          axis.title.x = element_text(hjust=0),
+          legend.position = "")
+
+
+```
+\
+
+**Conclusion: **
+In 17 years out of 24 the data show no strong evidence that there is a difference in belief between White and Non-white Americans that hard work leads to success. In other words, we have no strong evidence that being a white American increases or reduces the belief that hard work leads to success in life.\
+Only in 7 years out of 24 the data show a strong evidence that there is a difference in belief between White and Non-white Americans that hard work leads to success. In other words, we do have strong evidence that being a white American increases or reduces the belief that hard work leads to success in life\
+\
+\
+
+
+#### 2c) Inference - Trend
+
+Visualizing the trend of population belief towards hard work:
+
+```{r}
+# Plot trend of Confidence Intervals
+gss_result_02 %>% 
+  ggplot(aes(x = year))+
+  geom_line(aes(y = p_hat_diff*100), col = "darkblue")+
+  geom_line(aes(y = lower*100), col = "black", linetype="dashed")+
+  geom_line(aes(y = upper*100), col = "black", linetype="dashed")+
+  geom_hline(yintercept = 0)+
+  labs (
+    title = "Get ahead in life by hard work in US (1973-2012)",
+    subtitle = "Difference in belief between White and Non-White Americans (alpha = 5%)",
+#  subtitle = "Proportion difference with confidence interval in percent of sample population (alpha=5%)",
+    caption = "General Social Survey (GSS), 1972-2012",
+    x = "Year",
+    y = "Precentage")+
+  annotate("text", x=1998, y=17, label="White believe more")+
+  annotate("text", x=1998, y=-10, label="Non-White belive more")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+
+
+# mean(gss_result_02$moe)
+```
+\
+**Conclusion: **
+Overall, the White group believes more than the Non-White group, that hard work leads to success in life. Because the proportion difference is in most cases positive:\
+\
+p_hat_diff = p_hat_white - p_hat_non_white > 0\
+Therefore: p_hat_white > p_hat_non_white\
+And `p_hat` is the proportion of belief on hard work
+\
+
+However, in most cases (17 out of 24) the difference is not statistically significant, due to a large margin of error (+/-6.8%)\
+
+The results of the confidence interval and hypothesis tests agree with each other. I.e a "Fail to reject H0" result corresponds to a confidence interval that does include 0.\
+\
+\
+
+
+```{r include=FALSE}
+# removing all data from GE
+rm(list = ls())
+
+# reload dataset
+load("~/R/TestRepo/Data/gss.Rdata")
+```
+\
+\
+\
+\
+
+### 3: Independence test
+#### Resarch Question 3: Political party vs. education degree
+
+In this example, we want to answer the question of whether there is a relationship between the preferred political party and the level of education. Both variables are categorical variables with multiple levels. 
+
+To test for a relationship we will conduct a **Chi-square test for independence**. An introduction to this test can be found [in the text book for this course, OpenIntro Statistics, 4th edition, page 240](https://leanpub.com/os)\
+
+We will use the following variables:\
+
+- `partyid`(8 levels): Political party affiliation, response variable\
+- `degree` (5 levels): Respondents highest degree, explanatory variable\
+
+The Hypothesis test can be formulated as follows:\
+
+- H0: The political party preference **is independent** from the education degree\
+- Ha: The political party preference **is not independent** from the education degree\
+- Significance level: alpha = 5%\
+\
+
+
+#### Exploratory data analysis (EDA)
+
+**Prepare the data set**
+
+```{r}
+# Select variables of interest
+gss_select <- gss %>% 
+  select(year, degree, partyid)
+
+# Check NA counts for each variable
+colSums(is.na(gss_select))
+
+# Remove NAs
+gss_select <- gss_select %>% 
+  filter(!is.na(year) & !is.na(partyid) & !is.na(degree))
+```
+\
+
+**Inspect variables**
+
+```{r}
+# Inspect category degree
+gss_select %>% 
+  group_by((degree)) %>% 
+  count()
+
+plot1 <- gss_select %>% 
+  ggplot(aes(x=degree))+
+  geom_bar()+
+  labs (title = "Education degrees - levels")+
+    theme(plot.title.position = "plot", 
+          axis.title.y = element_text(hjust=1),
+          axis.title.x = element_text(hjust=0))+
+  coord_flip()
+
+# Inspect category partyid
+gss_select %>% 
+  group_by(partyid) %>% 
+  count()
+
+plot2 <- gss_select %>% 
+  ggplot(aes(x=partyid))+
+  geom_bar()+
+  labs (title = "Political party - levels")+
+    theme(plot.title.position = "plot", 
+          axis.title.y = element_text(hjust=1),
+          axis.title.x = element_text(hjust=0))+
+  coord_flip()
+
+plot1 + plot2
+```
+\
+
+**Filter for 2012**
+
+```{r}
+# Filter for year 2012
+gss_select_2012 <- gss_select %>% 
+  filter(year == 2012)
+```
+\
+
+**Group categorical levels of variable `partyid` to meaningful sub-categories**\
+
+We will assign the 8 political party preferences to 3 main party groups:\
+
+- Republican = {Strong Republican, Not Str Republican}\
+- Independent = {Ind Near Dem, Independent, Ind Near Rep}\
+- Democrat = {Strong Democrat, Not Str Democrat}\
+\
+
+```{r}
+############################################################ Regroup levels
+
+#  -------------------------------------------------------- Collapse levels
+gss_select_fct <- gss_select_2012 %>%
+  filter(partyid != "Other Party") %>% 
+  mutate(partyid2 = fct_collapse(partyid,
+                                 Republican = c("Not Str Republican",
+                                                "Strong Republican"),
+                                 Independent = c("Ind,Near Dem",
+                                                 "Independent",
+                                                 "Ind,Near Rep"),                               
+                                 Democrat = c("Strong Democrat",
+                                              "Not Str Democrat")  
+                                 ),
+         degree2 = degree %>% fct_rev()
+  ) %>% 
+  select(degree2, partyid2)
+
+# -------------------------------------------------- Reduce levels from 8 to 3
+gss_select_fct$partyid2 <- droplevels(gss_select_fct$partyid2)
+
+# --------------------------------------------------------------- Order levels
+gss_select_fct$partyid2 <- 
+  factor(gss_select_fct$partyid2, 
+         levels = c("Republican","Democrat","Independent"),
+         ordered = TRUE)
+
+gss_select_fct %>% 
+  group_by(partyid2) %>% 
+  summarise(n = n())
+```
+\
+
+**Plot preferred party by education degree in proportion**
+
+```{r}
+############################################# Plot proportions party by degree
+
+gss_select_fct %>% 
+  ggplot(aes(x=degree2))+
+  geom_bar(aes(fill=partyid2), position = "fill")+
+  labs(title = "Relationship between education degree and preferred party",
+       subtitle = "US 2012, in proportion", fill = "Party",
+       caption = "General Social Survey (GSS), 1972-2012") +
+  xlab("Education Degree")+
+  ylab("Party (proportions)")+
+  scale_fill_brewer(palette = "Set1")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust = 1),
+        axis.title.x = element_text(hjust = 0)
+  )
+```
+\
+
+**Create a 2-way-table (contingency table)**
+
+```{r}
+# ---------------------------------------------------- Create contingency table
+gss_cont_table <- table(gss_select_fct)
+gss_cont_table
+
+```
+\
+
+#### Inference
+
+**Check conditions**\
+
+1. Independence:\
+
+- random sampling within each group: OK\
+- random sampling between groups: OK\
+- sample size < 10% of population: OK\
+- each case only contributes to one cell (assumed): OK\
+\
+2. Sample size:\
+
+- each cell size > 5: OK\
+
+All conditions are met and nearly normal distribution can be assumed. Chi-square test statistic can be applied\
+
+
+**Chi-square test**
+
+```{r}
+############################################################### Chi-square test
+model <- chisq.test(table(gss_select_fct$degree2, gss_select_fct$partyid2))
+model
+
+```
+\
+**Conclusion**
+The p-value is about zero. We therefore, can reject H0. I.e. party preference is not independent from education degree, with a p-value of nearly zero percent.\
+
+P-value: Probability of an observed value or more extreme than X-squared = 62.2 given that H0 is true.  
+\
+\
+
+```{r include=FALSE}
+# removing all data from GE
+rm(list = ls())
+
+# reload dataset
+load("~/R/TestRepo/Data/gss.Rdata")
+```
+\
+\
+\
+\
+
+## Part 4: Numerical data
+
+### 4. Difference of two means
+#### Research question 4: Attitude towards space exploration spending by education
+
+One of the question in the GSS survey deals with the attitude towards government spending on space exploration (too little, too much). We want to know if there is difference in the attitude due to average years of education in 2010 to 2012. We assume that people with more years of education may think that the gov. spending is too little. To proof this claim we will conduct a hypothesis test and calculate the confidence interval by t-statistic.
+
+We will use the following variables:\
+
+- `natspac`(categorical, 3 levels): Space exploration program, response variable\
+- `educ` (numerical): Highest year of school completed, explanatory variable\
+
+Tasks:\
+
+a) Calculate a summary statistic and a **confidence interval** for the difference in means at a 95% confidence level\
+b) Does the data provide strong evidence that Americans with more years in education think that the government spending for space exploration is too little.  Apply a **hypothesis test** with a significance level of 5%\
+\
+
+#### Exploratory data analysis (EDA)
+
+Prepare the data set 
+
+```{r}
+# Prepare the data set
+# ---------------------------------------------------------- Select variables
+gss_select <- gss %>% 
+  select(year, educ, natspac) %>% 
+  filter(!is.na(educ), !is.na(natspac))
+
+# ------------------------------------------------------ Select 2010 - 2012 data
+gss_select <- gss_select %>% 
+  filter(year %in% c(2010:2012))
+```
+\
+
+**Variable `natspac`**
+
+Check number of levels
+
+```{r}
+# Check number of levels in categorical variable
+gss_select %>% 
+  group_by(natspac) %>% 
+  summarise(n = n())
+```
+
+Since we only want to compare levels "too little" and "too much" spending, we will remove level "About Right" from the data set.\
+
+```{r}
+# Remove level "About Right" in  variable
+gss_select2 <- gss_select %>% 
+  filter(!natspac == "About Right") 
+
+gss_select2 %>% 
+  group_by(natspac) %>% 
+  summarise(n = n())
+
+# Drop factor levels from 3 to 2 in, required for plotting
+gss_select2$natspac <- droplevels(gss_select2$natspac)
+
+# Plot distribution of "too little" vs. "too much"
+gss_select2 %>% 
+  ggplot(aes(x = natspac))+
+  geom_bar() +
+  labs(title = "Attitude towards nat. space exploration funding",
+       subtitle = "(US in 2010-2012, sample size = 1028)",
+       caption = "General Social Survey (GSS), 1972-2012") +
+  xlab("Space exploration funding")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust = 1),
+        axis.title.x = element_text(hjust = 0)
+  )
+```
+\
+\
+
+**Summary statistics for variable `educ`**
+
+Rename the group names:\
+
+- Group 1: respondent who replied with "too little" \
+- Group 2: respondent who replied with "too much"\
+\
+
+```{r}
+# Summary statistics for variable "educ"
+stat_descript <- gss_select2 %>% 
+  group_by(natspac) %>% 
+  summarise(n = n(),
+            mean_edu = mean(educ),
+            sd_edu = sd(educ),
+            median_edu = median(educ)
+            )
+stat_descript
+
+stat_descript <- stat_descript %>% 
+  pivot_wider(names_from = natspac, values_from = 2:5)
+
+stat_descript <- stat_descript %>% 
+  select(n_1 = "n_Too Little",
+         n_2 = `n_Too Much`,
+         mean_1 = "mean_edu_Too Little",
+         mean_2 = `mean_edu_Too Much`,
+         sd_1 = `sd_edu_Too Little`,
+         sd_2 = `sd_edu_Too Much`)
+```
+\
+
+```{r}
+# year of education distribution plots
+
+plot1 <- gss_select2 %>% 
+  ggplot(aes(educ))+
+  geom_histogram(binwidth = 2, fill="darkgrey", col="black")+
+  facet_wrap(~natspac, ncol = 1)+
+  labs(title = "Supporting space funding by yrs of education",
+     subtitle = "(US in 2010-2012, sample size = 1028)") +
+  xlab("Years of education")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust = 1),
+        axis.title.x = element_text(hjust = 0)
+  )
+
+plot2 <- gss_select2 %>% 
+  ggplot(aes(educ))+
+  geom_boxplot()+
+  facet_wrap(~natspac, ncol = 1)+
+  labs(title = " ",
+       subtitle = " ",
+       caption = "General Social Survey (GSS), 1972-2012") +
+  xlab("")+
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+plot1 + plot2
+```
+
+
+```{r}
+gss_select2 %>% 
+  ggplot(aes(sample = educ))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~natspac, nrow = 1)+
+  labs(title = "QQ Plot for Normal Distribution: Space Spending vs. Education")+
+  xlab("Normal theoretical quantile (z-score)")+
+  ylab("Data quantile (z-score)")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+```
+\
+The distributions show a relative strong left skew. We like to calculate the skewness and decide if we can use the samples for the statistical test.\
+
+```{r}
+# Calculate skewness for each sub-group
+gss_select2 %>% 
+  group_by(natspac) %>% 
+  summarise(skew = skewness(educ))
+
+```
+\
+The skewness values are between -0.5 and +0.5, i.e. approximately symmetric distribution. [Link](https://www.machinelearningplus.com/statistics/skewness-and-kurtosis/).\
+\
+
+
+
+#### 4a) Inference - Confidence Interval
+
+**Check conditions**
+
+\
+1. Independence:\
+
+- random samples within each group: OK\
+- samples between groups are not paired: OK\
+- sample size < 10% of population: OK\
+
+\
+2. Sample size/ skewness\
+
+- each sample size is > 30: OK\
+- skewness is between -0.5 and +0.5, i.e. approx. symmetric: OK\
+
+All conditions are met and nearly normal distribution can be assumed. t-statistic can be applied\
+\
+
+
+**Calculate confidence interval**
+
+Formula:\
+
+- mean_diff = mean_too_little - mean_too_much\
+- CI: mean diff +/- t_star * SE\
+
+First, we will use the function `inference()` from the `statsr` package, provided for this course. 
+
+```{r}
+########################################## statsr::inference() for t.test for CI
+t_test_CI <- inference(y = educ,
+                       x = natspac,
+                       data = gss_select2,
+                       statistic = "mean",
+                       type = "ci",
+                       method = "theoretical")
+```
+
+\
+
+Second, confidence interval calculated with base functions.\
+
+```{r}
+########################################################## manual t.test for CI
+# set significance level
+alpha <- 0.05
+
+# calculate degree of freedom
+# mean_1 = mean_too_little, mean_2 = mean_too_much
+stat_descript <- stat_descript %>% 
+  mutate(
+    mean_diff = mean_1 - mean_2,
+    dof = min(n_1, n_2) - 1,
+    se_ci = sqrt(sd_1^2/n_1 + sd_2^2/n_2),
+    moe = qt(1-alpha/2,dof) * se_ci,
+    lower = mean_diff - moe,
+    upper = mean_diff + moe)
+
+stat_descript
+```
+
+\
+
+**Conclusion**
+We are 95% confident that the true difference in mean for years in education is between 1.24 and 1.98 years. \
+I.e. The American public who thinks that the spending for space exploration is too little have in average 1.24 to 1.98 more years of education as their counterparts.\
+\
+\
+
+#### 4b) Inference - Hypothesis Test
+
+Null hypothesis (H0): There is no strong evidence that Americans with more years in education think that the government spending for space exploration is too little.\
+
+Alternative hypothesis (Ha): There is a strong evidence that Americans with more years in education think that the government spending for space exploration is too little.\
+
+This can be formulated as:\
+
+- H0: mue_diff = mue_too_little - mue_too_much  = 0 (there is no difference)\
+- Ha: mue_diff = mue_too_little - mue_too_much  > 0 (is greater than null)\
+- Significance level: alpha = 0.05 (5%)\
+\
+mue: population mean (true mean)\
+mean: sample mean (estimate of true mean)\
+\
+
+We will carry out a one-sided t-Test\
+\
+
+**Check conditions**\
+
+\
+1. Independence:\
+
+- random samples within each group: OK\
+- samples between groups are not paired: OK\
+- sample size < 10% of population: OK\
+
+\
+2. Sample size/ skewness\
+
+- each sample size is > 30: OK\
+- skewness is between -0.5 and +0.5, i.e. approx. symmetric: OK\
+
+All conditions are met and nearly normal distribution can be assumed. t-statistic can be applied\
+\
+
+**Hypothesis test** 
+
+First, hypothesis test with function `inference()` from `statsr` package:
+
+```{r}
+########################################## statsr::inference() for t.test for HT
+# Group 1: spending is too little
+# Group 2: spending is too much
+
+# H0: mue_1 - mue_2 = 0 (there is no difference in the true mean)
+# Ha: mue_1 - mue_2 > 0 (mue_1 is greater than mue_2)
+
+t_test_HT <- inference(y = educ,
+                       x = natspac,
+                       data = gss_select2,
+                       statistic = "mean",
+                       type = "ht",
+                       null = 0,
+                       alternative = "greater",
+                       method = "theoretical")
+```
+\
+\
+
+
+Second, hypothesis test with base functions.\
+
+```{r}
+########################################################## manual t.test for HT
+
+# set the null value
+null_value <- 0
+
+# hypothesis test
+stat_descript <- stat_descript %>% 
+  mutate(
+    t = (mean_diff - null_value)/se_ci,
+    p_value = (1 - pt(abs(t), dof)),
+    test_result = ifelse(p_value < alpha, "Reject H0", "Fail to reject H0")
+  )
+
+stat_descript %>% 
+  select(n_1, mean_1, sd_1,
+         n_2, mean_2, sd_2,
+         dof, t, p_value,
+         test_result)
+```
+\
+**Conclusion**
+The data show a strong evidence that Americans with more years in education think that the government spending for space exploration is too little. The p-value is < 0.0001. I.e. the probability to observe a t-value of 8.60 or more extreme, given that the null hypothesis is true, is almost zero.\
+The results of the confidence interval and hypothesis tests agree with each other. I.e a "Reject H0" result corresponds to a confidence interval that does not include the value "zero".\
+\
+\
+
+```{r include=FALSE}
+# removing all data from GE
+rm(list = ls())
+
+# reload dataset
+load("~/R/TestRepo/Data/gss.Rdata")
+```
+\
+\
+\
+\
+
+
+### 5. ANOVA Test
+#### Research question 5:  Number of children per respondent compared by social classes
+
+As final example we want to research the number of children per respondent in different social classes using the GSS survey for year 2012. We assume that the average number of children differs between the social classes. To proof this claim we will conduct an ANOVA test (Analysis of Variance).
+
+We will use the following variables:\
+
+- `childs` (numerical): Number of children, response variable\
+- `class` (categorical, 5 levels): Subjective class identification, explanatory variable\
+
+Tasks:\
+
+Does the data provide strong evidence that there is a difference in the average number of children per respondent between social classes. In case that the ANOVA test rejects the Null Hypothesis (there is a difference at least in one pair), identify which pairs of social classes are significantly different in their means. Apply a **hypothesis test (ANOVA test)** with a significance level of 5%.\
+\
+
+#### Exploratory data analysis (EDA)
+
+**Prepare the data set** 
+
+```{r}
+############################################################# Prepare data set
+
+# ----------------------------------------------------------- select variables
+gss_select <- gss %>% 
+  select(year, childs, class) %>% 
+  filter(!is.na(childs), !is.na(class))
+# ------------------------------------------------------------ Filter for 2012
+gss_select <- gss_select %>% 
+  filter(year == c(2012))
+```
+\
+
+Check levels in variable `class`
+
+```{r}
+################################################################ Check levels
+
+# -------------------------------------------------------------- Check levels
+gss_select %>% 
+  group_by(year, class) %>% 
+  count()
+# ------------------------------------------------------- remove level No Class
+gss_select <- gss_select %>% 
+   filter(class != "No Class")
+# ------------------------------------------------------- reset level number
+gss_select$class <- droplevels(gss_select$class)
+```
+\
+\
+
+
+**Check conditions for ANOVA test**\
+
+\
+1. Independence\
+
+- within each group: random samples: OK\
+- between groups: non paired: OK\
+- n < 10% of population: OK\
+
+2. Approx. normal distribution\
+
+- Check normal distribution and skewness\
+
+```{r }
+############################################################ check distributions
+
+# --------------------------------------------------------------- histogram
+plot1 <- gss_select %>% 
+  ggplot(aes(x=childs)) +
+  geom_histogram(fill="lightblue", color="black", binwidth = 1)+
+  facet_wrap(~class, nrow=1)+
+  labs(title = "Distribution of Children per Class (2012)")+
+  ylab("Count")+
+  xlab("")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+
+# ---------------------------------------------------------------- boxplots
+plot2 <- gss_select %>% 
+  ggplot(aes(y=childs))+
+  geom_boxplot()+
+  facet_wrap(~class, nrow = 1)+
+  coord_flip()+
+  labs(caption = "General Social Survey (GSS), 1972-2012") +
+  ylab("Number of children per respondent")+
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+
+
+plot1 / plot2
+```
+\
+```{r fig.asp=0.4}
+# -------------------------------------------------------------------- qq plots
+gss_select %>% 
+  ggplot(aes(sample = childs))+
+  geom_qq()+
+  geom_qq_line()+
+  facet_wrap(~class, nrow = 1)+
+  labs(title = "QQ Plot for Normal Distribution: Children per Class")+
+  xlab("Normal theoretical quantile (z-score)")+
+  ylab("Data quantile (z-score)")+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+
+```
+\
+```{r}
+# -------------------------------------------------------- Skewness
+
+gss_select %>% 
+  group_by(class) %>% 
+  summarize(n = n(),
+            skew = skewness(childs))
+```
+\
+
+The skewness values are between -1.0 and +1.0, i.e. the distribution is moderately skewed. [Link](https://www.machinelearningplus.com/statistics/skewness-and-kurtosis/).
+However, there are no large numbers of extreme outliers. Therefore, we can assume that the variables will hold nearly normal distribution.\
+\
+
+3. Consistent variability (**homoscedasticity**)
+
+
+```{r}
+############################################################# Summary statistic
+
+sum1 <- gss_select %>% 
+  group_by(class) %>% 
+  summarise(n_class = n(),
+            mean_class = mean(childs),
+            sd_class = sd(childs))
+sum1
+
+```
+
+```{r}
+################################################################ Boxplots again
+
+ggplot(data = gss_select, aes(y=childs))+
+  geom_boxplot() +
+  facet_wrap(~class, nrow = 1)+
+    labs(title = "Distribution of Children per Class (2012)",
+    caption = "General Social Survey (GSS), 1972-2012") +
+  ylab("Number of children per respondent")+
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())+
+  theme(plot.title.position = "plot",
+        axis.title.y = element_text(hjust=1),
+        axis.title.x = element_text(hjust=0))
+```
+\
+
+From summary statistic and from the boxplot we can assume that the variation is sufficiently consistent (sd range 1.60 to 1.92)\
+
+All conditions are met and we can proceed to the ANOVA test.\
+\
+\
+
+#### Inference - ANOVA Test and Multiple Comparison Test
+
+Null hypothesis (H0): There is no strong evidence that the average number of children per respondent differs between social classes.\
+\
+Alternative hypothesis (Ha): There is strong evidence that the average number of children per respondent differs at least between two social classes.\
+\
+
+This can be formulated as:\
+
+- H0: mue_1 = mue_2 = ... = mue_k (no difference between true means)
+- Ha: mue_i != mue_j (difference between at least two true means)\
+- Significance level: alpha = 0.05 (5%)\
+\
+
+mue: population mean (true mean)\
+mean: sample mean (estimate of true mean)\
+k: number of classes
+\
+
+ANOVA and Multiple pairwise test with function `inference()` from `statsr` package:
+
+```{r message=FALSE, warning=FALSE}
+################################################################ ANOVA Test
+
+# ------------------------------------------------------ calculating alpha_star
+alpha <- 0.05
+K <- length(sum1$class)               # ---------------------- number of classes
+alpha_star <- alpha/(K*(K-1)/2)       # ---------------------- alpha_star
+print(paste0("alpha_star (Benferroni correction) = ", round(alpha_star, 4)))
+
+# ------------------------------------------------------------------ ANOVA Test
+anova_test <- inference(y = childs,
+                       x = class,
+                       data = gss_select,
+                       statistic = "mean",
+                       type = "ht",
+                       null = 0,
+                       alternative = "greater",
+                       method = "theoretical",
+                       sig_level = 0.05)
+```
+\
+**Conclusion 1**\
+
+- The ANOVA test delivers a p-value of 0.004 which is less than alpha 0.05. Therefore, we reject the Null Hypothesis. I.e. there is a strong evidence that the average number of children per class differs at least in one pair.\
+
+\
+**Conclusion 2:** \
+
+- The multiple pairwise t-test identifies the pairs of classes with strong evidence of difference in the number of children. In this case we test against the corrected alpha value (Bonferroni correction, alpha_star = 0.0083). For the following pairs we don't have strong evidence that there is a difference int eht average number of children per class:\
+\
+
+-- Middle Class - Working Class (p-value 0.40 > 0.0083) => Fail to reject H0\
+-- Upper Class - Lower Class (p-value 0.25 > 0.0083) => Fail to reject H0\
+-- Upper Class - Working Class (p-value 0.55 > 0.0083) => Fail to reject H0\
+-- Upper Class - Middle Class (p-value 0.36 > 0.0083) => Fail to reject H0\
+\
+
+- Only in the pairs "Working Class - Lower Class" and "Middle Class - Lower Class" we do have a strong evidence that there is a difference in the average number of children per class.\
+\
+\
+
+
+#### OPTIONAL: Inference - ANOVA Test and Multiple Comparison Test (alternative 1)
+
+Alternatively, we can also calculate ANOVA and Multiple Comparison Test with functions from the `stats` package:\
+
+- `aov()`  for ANOVA test\
+- `TukeyHSD()`  for a modified multiple comparison test\
+
+*For more information see Help function in RStudio.*\
+
+
+```{r}
+### ANOVA Test (Alternative approach) ##########################################
+#
+# H0: average number of children per respondent is the same across all social classes
+# Ha: average number of children per respondent is not the same across all social classes,
+# at least not between two groups
+###############################################################################
+alpha <- 0.05
+
+gss_select %>% 
+  aov(childs ~ class, data = .) %>% 
+  summary()
+
+```
+\
+We get the identical result as from function `inference`.\
+
+A common post-hoc test (after test) for ANOVA is the [TukeyHSD test](https://en.wikipedia.org/wiki/Tukey%27s_range_test)\
+
+```{r}
+### Post-hoc ANOVA TukeyHSD test ##############################################
+model <- gss_select %>% 
+  aov(childs ~ class, data = .) %>% 
+  TukeyHSD()
+model
+```
+
+The p-values from the TukeyHSD tests are adjusted p-values.\
+\
+\
+\
+\
+
+
+#### OPTIONAL: Inference - ANOVA Test and Multiple Comparison Test (alternative 2)
+
+Both ANOVA test functions are more or less a kind of "blackboxes". Below we wrote a code to manually calculate ANOVA and the multiple comparison t-test.\
+
+**ANOVA Test**
+
+
+```{r}
+########################################################## ANOVA Test (manually)
+sum1
+
+# --------------------------------------------------- Number of obs. and groups
+N <- length(gss_select$childs)                       # --- total # observations
+K <- length(sum1$class)                              # --------------- # groups
+
+# 
+
+# ------------- Calculate SSE (sum squared errors) and MSE (mean squared errors)
+SSE <- sum((sum1$n_class - 1) * sum1$sd_class^2)
+dfe <- N - K                                          # ----- degree of freedom
+MSE <- SSE/dfe
+
+# --------------------------------------------- Calculate SST (sum squared total)
+mean_total <- sum(gss_select$childs)/N
+SST <- sum((gss_select$childs - mean_total)^2)
+df <- N - 1
+
+# ------------- Calculate SSG (sum squared groups) and MSG (mean squared groups)
+SSG <- sum(sum1$n_class * (sum1$mean_class - mean_total)^2)
+dfg <- K - 1                                           # ----- degree of freedom
+MSG <- SSG/dfg
+
+# Check sum
+SST2 <- SSG + SSE
+df2 <- dfe + dfg
+
+# print(paste0("Check sum for Sum Squared: SST = SSE + SSG : ", near(SST, SST2)))
+# print(paste0("Check sum for degrees of freedom:  df = dfe + dfg : ", near(df, df2)))
+
+
+# ---------------------------------------------------------------------- F.Test
+F <- MSG/MSE
+p_value <- pf(F, dfg, dfe, lower.tail = FALSE)
+
+# --------------------------------------------------------------- Output table
+
+class <- c(dfg, SSG, MSG, F, p_value)        # ------- vector for results groups
+Residuals <- c(dfe, SSE, MSE, NA, NA)        # ------- vector for results error
+Total <- c(df, SST, NA, NA, NA)              # ------- vector for results total
+
+output <- cbind(class, Residuals, Total)     # ------- bind to dataframe
+output <- t(output)                          # ------- transpose
+
+colnames(output) <- c("df", "Sum_sq", "Mean_sq", "F", "p_value") #  add colnames
+output
+```
+Identical result as in other approaches.\
+\
+\
+
+**Multiple Comparison Test**
+
+Create a table for each group pair by combinatorics without repetition
+
+```{r}
+########  Create combination table for all Groups without repetition ########
+# change factor to character
+sum1$class <- as.character(sum1$class)
+
+# create combination array
+dfc <- combn(sum1$class,2)
+dfc <- as.data.frame(dfc)
+
+# Transpose dataframe
+dfc_t <- t(dfc)
+dfc_t <- as.data.frame(dfc_t)
+
+# Rename name of column
+dfc_t_left <- dfc_t %>% 
+  rename(c("class" = "V1"))
+
+dfc_t_right <- dfc_t %>% 
+  rename(c("class" = "V2"))
+
+# Join with dataframe sum1 (for values)
+df_joint_left <- dfc_t_left %>% 
+  left_join(sum1, by = "class")
+
+df_joint_right <- dfc_t_right %>% 
+  left_join(sum1, by = "class")
+
+# Add row ID and rename columns (left)
+df_joint_left <- df_joint_left %>% 
+  rowid_to_column(var="id")
+
+df_joint_left <- df_joint_left %>% 
+  rename(c("V1" = "class"))
+
+# Add row ID and rename columns (right)
+df_joint_right <- df_joint_right %>% 
+  rowid_to_column(var="id")
+
+df_joint_right <- df_joint_right %>% 
+  rename(c("V2" = "class"))
+
+# Join left and right tables by ID
+df_joint_total <- df_joint_left %>% 
+  inner_join(df_joint_right, by ="id")
+
+# Clean up
+sum1_combi <- df_joint_total %>% 
+  select(id, 
+         class.x = "V1.x", 
+         class.y = "V2.y",         
+         n_class.x,
+         mean_class.x,
+         sd_class.x,
+         n_class.y,
+         mean_class.y,
+         sd_class.y)
+
+rm(df_joint_left, df_joint_right, dfc, dfc_t, dfc_t_left, dfc_t_right)
+
+# Summary table for pairwise testing of all possible combinations
+sum1_combi
+
+```
+\
+
+Multiple t-tests\
+
+```{r}
+################## Multiple combination t-test ################################
+#
+# ------------------------------------------------------- Bonferroni correction
+alpha_star <- alpha/(K*(K-1)/2)
+
+
+# --------------------------- Calculate for each combination, SE, t and p_value
+sum1_combi2 <- sum1_combi %>% 
+  mutate(mean_diff = mean_class.x - mean_class.y,
+         SE = sqrt(MSE/n_class.x + MSE/n_class.y),
+         T = mean_diff / SE,
+         p_value = 2 * pt(abs(T),dfe, lower.tail = FALSE),
+         result = ifelse(p_value < alpha_star, 
+                         "Reject H0", 
+                         "Fail to reject H0"))
+
+sum1_combi2_short <- sum1_combi2 %>% 
+  select(id,
+         class.x,
+         class.y,
+         mean_diff,
+         SE,
+         T,
+         p_value,
+         result)
+sum1_combi2_short
+
+
+print(paste0("modified significance level, alpha_star: ", round(alpha_star,4)))
+
+
+```
+\
+The results are identical with the results from function `inference`.
+
+```{r include=FALSE}
+# removing all data from GE
+rm(list = ls())
+
+# reload dataset
+load("~/R/TestRepo/Data/gss.Rdata")
+```
+\
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
