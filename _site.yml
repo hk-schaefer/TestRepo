@@ -1,9 +1,19 @@
-name: "my-website"
+name: "TEST my-website"
 output_dir: "docs"
 navbar:
-  title: "My Website"
+  title: "TEST My Website"
   left:
     - text: "Home"
       href: index.html
-    - text: "About"
-      href: about.html
+    - text: "Project 2"
+      href: 02_stat_inf_project.html
+    - text: "Project 3 (draft)"
+      href: Exercises_Chapt_08.html
+output:
+ html_document:
+    theme: flatly
+    highlight: zenburn
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
